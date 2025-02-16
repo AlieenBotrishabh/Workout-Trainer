@@ -3,7 +3,7 @@ import React from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import WorkoutCard from './components/WorkoutCard';
 
-export default function index() {
+export default function HomeScreen() {
   return (
     <ScrollView style={styles.container}>
       <Text style={styles.title}>AI Workout Trainer</Text>
