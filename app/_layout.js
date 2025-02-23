@@ -3,10 +3,19 @@ import HomeScreen from "./HomeScreen";
 import WorkoutScreen from "./WorkoutScreen";
 import HistoryScreen from "./History";
 import ProfileScreen from "./Profile";
+import { useEffect } from 'react';
+import * as tf from '@tensorflow/tfjs';
 
 const Tab = createBottomTabNavigator();
 
 export default function Layout() {
+
+  useEffect(() => {
+    tf.ready().then(() => {
+      console.log('TensorFlow.js is ready');
+    });
+  }, []);
+
   return (
     <Tab.Navigator
       screenOptions={{
