@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 
+<<<<<<< HEAD
 // Schema for workout completions
 const CompletionSchema = new mongoose.Schema({
   date: {
@@ -147,3 +148,28 @@ WorkoutSchema.pre('remove', async function(next) {
 });
 
 module.exports = mongoose.model('Workout', WorkoutSchema);
+=======
+const workoutSchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  description: String,
+  exercises: [{
+    name: String,
+    description: String,
+    duration: Number,
+    reps: Number,
+    sets: Number,
+    correctForm: {
+      keyPoints: [String],
+      angles: [{
+        joint: String,
+        minAngle: Number,
+        maxAngle: Number,
+      }],
+    },
+  }],
+  difficulty: String,
+  targetMuscles: [String],
+});
+
+module.exports = mongoose.model('Workout', workoutSchema);
+>>>>>>> f300f0e9d5f587c6f689f47df3a9556ab286f9e1

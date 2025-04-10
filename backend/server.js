@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 // server.js
 const express = require('express');
 const dotenv = require('dotenv');
@@ -84,4 +85,34 @@ process.on('unhandledRejection', (err, promise) => {
   console.log(`Error: ${err.message}`.red);
   // Close server & exit process
   server.close(() => process.exit(1));
+=======
+// backend/server.js
+const express = require('express');
+const mongoose = require('mongoose');
+const cors = require('cors');
+const authRoutes = require('./routes/Auth');
+const workoutRoutes = require('./routes/Workout');
+const progressRoutes = require('./routes/Progress');
+
+const app = express();
+
+// Middleware
+app.use(cors());
+app.use(express.json());
+
+// Database connection
+mongoose.connect('mongodb://localhost:27017/workout', {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+});
+
+// Routes
+app.use('/api/auth', authRoutes);
+app.use('/api/workouts', workoutRoutes);
+app.use('/api/progress', progressRoutes);
+
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+>>>>>>> f300f0e9d5f587c6f689f47df3a9556ab286f9e1
 });

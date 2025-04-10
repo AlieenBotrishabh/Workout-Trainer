@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 // server/models/User.js
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
@@ -251,3 +252,21 @@ const WorkoutSchema = new mongoose.Schema({
 });
 
 module.exports = mongoose.model('Workout', WorkoutSchema);
+=======
+// backend/models/User.js
+const mongoose = require('mongoose');
+
+const userSchema = new mongoose.Schema({
+  username: { type: String, required: true, unique: true },
+  email: { type: String, required: true, unique: true },
+  password: { type: String, required: true },
+  profile: {
+    height: Number,
+    weight: Number,
+    fitnessLevel: String,
+  },
+  createdAt: { type: Date, default: Date.now },
+});
+
+module.exports = mongoose.model('User', userSchema);
+>>>>>>> f300f0e9d5f587c6f689f47df3a9556ab286f9e1
