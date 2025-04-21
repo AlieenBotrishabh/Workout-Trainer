@@ -5,14 +5,14 @@ export default function Navbar() {
   const navigate = useNavigate();
   const location = useLocation();
   const isLoggedIn = !!localStorage.getItem('token');
-  
+
   const handleLogout = () => {
     localStorage.removeItem('token');
     navigate('/login');
   };
-  
+
   const isActive = (path) => location.pathname === path;
-  
+
   return (
     <nav className="bg-gray-900 shadow-md border-b border-blue-800 px-6 py-4 flex items-center justify-between">
       <div className="text-xl font-semibold text-blue-400">
@@ -27,7 +27,7 @@ export default function Navbar() {
         >
           Home
         </Link>
-        
+
         {isLoggedIn ? (
           <>
             <Link
@@ -37,6 +37,14 @@ export default function Navbar() {
               }`}
             >
               Workout
+            </Link>
+            <Link
+              to="/routine"
+              className={`text-sm font-medium px-3 py-2 rounded-md ${
+                isActive('/routine') ? 'bg-blue-700 text-black' : 'text-blue-300 hover:bg-gray-800'
+              }`}
+            >
+              Routine
             </Link>
             <button
               onClick={handleLogout}

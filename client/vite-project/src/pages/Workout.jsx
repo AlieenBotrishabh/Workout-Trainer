@@ -13,6 +13,7 @@ import {
   Tooltip,
   Legend
 } from 'chart.js';
+import Instructions from '../components/Instructions';
 
 ChartJS.register(
   CategoryScale,
@@ -47,6 +48,7 @@ export default function Workout() {
   const [curlDirection, setCurlDirection] = useState(0); // 0 = down, 1 = up
   const [curlPercentage, setCurlPercentage] = useState(0);
   const [angleData, setAngleData] = useState([]);
+  const [showReferencePose, setShowReferencePose] = useState(true);
 
   const timestamps = workoutData.map((log) => log.timestamp);
   const postureStatuses = workoutData.map((log) => log.posture === 'Correct Posture' ? 1 : 0);
@@ -157,7 +159,10 @@ export default function Workout() {
             const { correct, avgDiff } = isCorrectPosture(pose);
             const status = correct ? 'Correct Posture' : 'Incorrect Posture';
             setPostureStatus(status);
-            setAccuracy(((1 - avgDiff) * 100).toFixed(2));
+            
+            // Make sure accuracy is properly set and displayed
+            const calculatedAccuracy = ((1 - avgDiff) * 100).toFixed(2);
+            setAccuracy(calculatedAccuracy);
 
             setFeedbackMessage(
               correct ? '✅ Well done! Keep going!' : '⚠️ Incorrect posture, adjust your form.'
@@ -182,6 +187,7 @@ export default function Workout() {
                 timestamp: new Date().toLocaleTimeString(),
                 posture: status,
                 exercise: selectedExercise,
+                accuracyValue: calculatedAccuracy,
               },
             ]);
           }
@@ -196,25 +202,28 @@ export default function Workout() {
     return () => cancelAnimationFrame(animationFrameId);
   }, [selectedExercise, isRecording, videoPlayback]);
 
-  // Calculate angle between three points (for curl tracking)
+  // Improved angle calculation using vectors 
   const calculateAngle = (a, b, c) => {
     if (!a || !b || !c) return 0;
     
-    // Calculate angle using the arctan2 method, matching the Python implementation
-    const radians = Math.atan2(c.y - b.y, c.x - b.x) - 
-                    Math.atan2(a.y - b.y, a.x - b.x);
+    // Use vectors for more accurate angle calculation
+    const ab = { x: b.x - a.x, y: b.y - a.y };
+    const bc = { x: c.x - b.x, y: c.y - b.y };
     
-    let angle = Math.abs(radians * 180.0 / Math.PI);
+    // Calculate dot product
+    const dotProduct = ab.x * bc.x + ab.y * bc.y;
     
-    // Ensure angle is within 0-180 range
-    if (angle > 180.0) {
-      angle = 360.0 - angle;
-    }
+    // Calculate magnitudes
+    const abMag = Math.sqrt(ab.x * ab.x + ab.y * ab.y);
+    const bcMag = Math.sqrt(bc.x * bc.x + bc.y * bc.y);
+    
+    // Calculate angle in degrees
+    const angle = Math.acos(dotProduct / (abMag * bcMag)) * (180 / Math.PI);
     
     return angle;
   };
 
-  // Handle curl exercise specifically
+  // Handle curl exercise specifically with improved angle tracking
   const handleCurlExercise = (pose) => {
     const keypoints = pose.keypoints.reduce(
       (acc, k) => ({ ...acc, [k.part]: k.position }),
@@ -227,10 +236,10 @@ export default function Workout() {
     const wrist = keypoints.rightWrist;
     
     if (shoulder && elbow && wrist) {
-      // Calculate arm angle
+      // Calculate arm angle using the improved angle calculation
       const angle = calculateAngle(shoulder, elbow, wrist);
       
-      // Calculate percentage of curl completion (similar to Python example)
+      // Calculate percentage of curl completion
       const percentage = Math.round(((angle - 30) / (160 - 30)) * 100);
       const boundedPercentage = Math.min(Math.max(percentage, 0), 100);
       setCurlPercentage(boundedPercentage);
@@ -242,7 +251,7 @@ export default function Workout() {
         return newData;
       });
       
-      // Set accuracy based on form
+      // Set accuracy based on form - make sure this is displayed properly
       setAccuracy(boundedPercentage);
       
       // Count reps using similar logic to Python example
@@ -280,7 +289,8 @@ export default function Workout() {
           timestamp: new Date().toLocaleTimeString(),
           posture: `Angle: ${angle.toFixed(1)}°`,
           exercise: 'Curls',
-          percentage: boundedPercentage
+          percentage: boundedPercentage,
+          accuracyValue: boundedPercentage
         }
       ]);
     }
@@ -323,6 +333,7 @@ export default function Workout() {
     audio.play();
   };
 
+  // Improved drawPose function with better visibility
   const drawPose = (pose) => {
     const ctx = canvasRef.current.getContext('2d');
     canvasRef.current.width = videoRef.current.videoWidth;
@@ -332,11 +343,233 @@ export default function Workout() {
     drawKeypoints(pose.keypoints, 0.5, ctx);
     drawSkeleton(pose.keypoints, 0.5, ctx);
     drawLabels(pose.keypoints, ctx);
+    drawAngleVisualization(pose.keypoints, ctx);
+    
+    // Draw reference pose if enabled
+    if (showReferencePose) {
+      drawReferencePose(ctx);
+    }
     
     // Draw curl progress bar if doing curls
     if (selectedExercise === 'Curls') {
       drawCurlProgressBar(ctx);
     }
+  };
+
+  // New function to visualize angles between joints
+  const drawAngleVisualization = (keypoints, ctx) => {
+    const keypointObj = keypoints.reduce(
+      (acc, k) => ({ ...acc, [k.part]: { position: k.position, score: k.score } }),
+      {}
+    );
+    
+    // For curl exercise
+    if (selectedExercise === 'Curls') {
+      const shoulder = keypointObj.rightShoulder;
+      const elbow = keypointObj.rightElbow;
+      const wrist = keypointObj.rightWrist;
+      
+      if (shoulder && elbow && wrist && 
+          shoulder.score > 0.5 && elbow.score > 0.5 && wrist.score > 0.5) {
+        // Draw angle arc
+        const angle = calculateAngle(
+          shoulder.position, 
+          elbow.position, 
+          wrist.position
+        );
+        
+        ctx.beginPath();
+        ctx.arc(elbow.position.x, elbow.position.y, 30, 
+                Math.atan2(shoulder.position.y - elbow.position.y, shoulder.position.x - elbow.position.x),
+                Math.atan2(wrist.position.y - elbow.position.y, wrist.position.x - elbow.position.x));
+        ctx.strokeStyle = 'yellow';
+        ctx.lineWidth = 4;
+        ctx.stroke();
+        
+        // Display angle text
+        ctx.fillStyle = 'white';
+        ctx.font = '16px Arial';
+        ctx.fillText(`${Math.round(angle)}°`, elbow.position.x + 15, elbow.position.y - 15);
+      }
+    }
+    
+    // For squat exercise
+    if (selectedExercise === 'Squats') {
+      const hip = keypointObj.rightHip;
+      const knee = keypointObj.rightKnee;
+      const ankle = keypointObj.rightAnkle;
+      
+      if (hip && knee && ankle && 
+          hip.score > 0.5 && knee.score > 0.5 && ankle.score > 0.5) {
+        // Draw angle arc
+        const angle = calculateAngle(
+          hip.position, 
+          knee.position, 
+          ankle.position
+        );
+        
+        ctx.beginPath();
+        ctx.arc(knee.position.x, knee.position.y, 30, 
+                Math.atan2(hip.position.y - knee.position.y, hip.position.x - knee.position.x),
+                Math.atan2(ankle.position.y - knee.position.y, ankle.position.x - knee.position.x));
+        ctx.strokeStyle = 'yellow';
+        ctx.lineWidth = 4;
+        ctx.stroke();
+        
+        // Display angle text
+        ctx.fillStyle = 'white';
+        ctx.font = '16px Arial';
+        ctx.fillText(`${Math.round(angle)}°`, knee.position.x + 15, knee.position.y - 15);
+      }
+    }
+  };
+
+  // New function to draw reference pose
+  const drawReferencePose = (ctx) => {
+    const width = canvasRef.current.width;
+    const height = canvasRef.current.height;
+    
+    ctx.globalAlpha = 0.4; // Make reference pose semi-transparent
+    
+    if (selectedExercise === 'Squats') {
+      const refPose = correctPoses.Squats;
+      
+      // Draw head
+      ctx.beginPath();
+      ctx.arc(width * 0.55, height * 0.3, 20, 0, 2 * Math.PI);
+      ctx.fillStyle = 'lightblue';
+      ctx.fill();
+      
+      // Draw torso
+      ctx.beginPath();
+      ctx.moveTo(width * 0.55, height * 0.35);
+      ctx.lineTo(width * 0.55, height * 0.6);
+      ctx.strokeStyle = 'lightblue';
+      ctx.lineWidth = 8;
+      ctx.stroke();
+      
+      // Draw legs
+      ctx.beginPath();
+      ctx.moveTo(width * refPose.leftHip.x, height * refPose.leftHip.y);
+      ctx.lineTo(width * refPose.leftKnee.x, height * refPose.leftKnee.y);
+      ctx.lineTo(width * refPose.leftAnkle.x, height * refPose.leftAnkle.y);
+      ctx.strokeStyle = 'lightblue';
+      ctx.lineWidth = 8;
+      ctx.stroke();
+      
+      ctx.beginPath();
+      ctx.moveTo(width * refPose.rightHip.x, height * refPose.rightHip.y);
+      ctx.lineTo(width * refPose.rightKnee.x, height * refPose.rightKnee.y);
+      ctx.lineTo(width * refPose.rightAnkle.x, height * refPose.rightAnkle.y);
+      ctx.strokeStyle = 'lightblue';
+      ctx.lineWidth = 8;
+      ctx.stroke();
+      
+      // Draw arms
+      ctx.beginPath();
+      ctx.moveTo(width * 0.55, height * 0.4);
+      ctx.lineTo(width * 0.4, height * 0.5);
+      ctx.strokeStyle = 'lightblue';
+      ctx.lineWidth = 8;
+      ctx.stroke();
+      
+      ctx.beginPath();
+      ctx.moveTo(width * 0.55, height * 0.4);
+      ctx.lineTo(width * 0.7, height * 0.5);
+      ctx.strokeStyle = 'lightblue';
+      ctx.lineWidth = 8;
+      ctx.stroke();
+    }
+    
+    if (selectedExercise === 'Curls') {
+      // Draw head
+      ctx.beginPath();
+      ctx.arc(width * 0.5, height * 0.2, 20, 0, 2 * Math.PI);
+      ctx.fillStyle = 'lightblue';
+      ctx.fill();
+      
+      // Draw torso
+      ctx.beginPath();
+      ctx.moveTo(width * 0.5, height * 0.25);
+      ctx.lineTo(width * 0.5, height * 0.6);
+      ctx.strokeStyle = 'lightblue';
+      ctx.lineWidth = 8;
+      ctx.stroke();
+      
+      // Draw legs
+      ctx.beginPath();
+      ctx.moveTo(width * 0.5, height * 0.6);
+      ctx.lineTo(width * 0.4, height * 0.9);
+      ctx.strokeStyle = 'lightblue';
+      ctx.lineWidth = 8;
+      ctx.stroke();
+      
+      ctx.beginPath();
+      ctx.moveTo(width * 0.5, height * 0.6);
+      ctx.lineTo(width * 0.6, height * 0.9);
+      ctx.strokeStyle = 'lightblue';
+      ctx.lineWidth = 8;
+      ctx.stroke();
+      
+      // Draw left arm
+      ctx.beginPath();
+      ctx.moveTo(width * 0.5, height * 0.3);
+      ctx.lineTo(width * 0.3, height * 0.3);
+      ctx.lineTo(width * 0.2, height * 0.5); // Arm bent at elbow
+      ctx.strokeStyle = 'lightblue';
+      ctx.lineWidth = 8;
+      ctx.stroke();
+      
+      // Draw right arm
+      ctx.beginPath();
+      ctx.moveTo(width * 0.5, height * 0.3);
+      ctx.lineTo(width * 0.7, height * 0.3);
+      ctx.lineTo(width * 0.8, height * 0.5); // Arm bent at elbow
+      ctx.strokeStyle = 'lightblue';
+      ctx.lineWidth = 8;
+      ctx.stroke();
+    }
+    
+    ctx.globalAlpha = 1.0; // Reset transparency
+  };
+
+  // Improved keypoint drawing for better visibility
+  const drawKeypoints = (keypoints, threshold, ctx) => {
+    keypoints.forEach((k) => {
+      if (k.score > threshold) {
+        const { x, y } = k.position;
+        ctx.beginPath();
+        ctx.arc(x, y, 8, 0, 2 * Math.PI); // Increased size for better visibility
+        ctx.fillStyle = 'red'; // More visible color
+        ctx.fill();
+        ctx.strokeStyle = 'white'; // Add outline for better contrast
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+    });
+  };
+
+  const drawSkeleton = (keypoints, threshold, ctx) => {
+    const adjacent = posenet.getAdjacentKeyPoints(keypoints, threshold);
+    adjacent.forEach(([from, to]) => {
+      ctx.beginPath();
+      ctx.moveTo(from.position.x, from.position.y);
+      ctx.lineTo(to.position.x, to.position.y);
+      ctx.strokeStyle = 'lime';
+      ctx.lineWidth = 3; // Increased for better visibility
+      ctx.stroke();
+    });
+  };
+
+  const drawLabels = (keypoints, ctx) => {
+    keypoints.forEach((k) => {
+      if (k.score > 0.5) { // Only show labels for confident detections
+        const { x, y } = k.position;
+        ctx.fillStyle = 'yellow';
+        ctx.font = '12px Arial';
+        ctx.fillText(k.part, x + 10, y - 10);
+      }
+    });
   };
 
   const drawCurlProgressBar = (ctx) => {
@@ -363,39 +596,6 @@ export default function Workout() {
     ctx.fillStyle = '#22c55e';
     ctx.font = '36px Arial';
     ctx.fillText(Math.floor(repCount), width - 80, height - 40);
-  };
-
-  const drawKeypoints = (keypoints, threshold, ctx) => {
-    keypoints.forEach((k) => {
-      if (k.score > threshold) {
-        const { x, y } = k.position;
-        ctx.beginPath();
-        ctx.arc(x, y, 6, 0, 2 * Math.PI);
-        ctx.fillStyle = 'aqua';
-        ctx.fill();
-      }
-    });
-  };
-
-  const drawSkeleton = (keypoints, threshold, ctx) => {
-    const adjacent = posenet.getAdjacentKeyPoints(keypoints, threshold);
-    adjacent.forEach(([from, to]) => {
-      ctx.beginPath();
-      ctx.moveTo(from.position.x, from.position.y);
-      ctx.lineTo(to.position.x, to.position.y);
-      ctx.strokeStyle = 'lime';
-      ctx.lineWidth = 2;
-      ctx.stroke();
-    });
-  };
-
-  const drawLabels = (keypoints, ctx) => {
-    keypoints.forEach((k) => {
-      const { x, y } = k.position;
-      ctx.fillStyle = 'yellow';
-      ctx.font = '12px Arial';
-      ctx.fillText(k.part, x + 10, y - 10);
-    });
   };
 
   const handleVideoUpload = (e) => {
